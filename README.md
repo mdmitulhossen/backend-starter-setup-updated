@@ -1,4 +1,4 @@
-# 🚀 Backend API
+# 🚀 starter pack Backend API
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-green)](https://nodejs.org/)
