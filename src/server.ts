@@ -2,10 +2,16 @@ import { Server } from "http";
 import app from "./app";
 import { PrismaConnection } from "./app/db/prismaConnection";
 import config from "./config/index";
-import { initializeCronJobs } from "./utils/cron";
-import { initializeEventListeners } from "./utils/events/loader";
 import logger from "./utils/logger";
 import { disconnectPrisma } from "./utils/prisma";
+import { closeQueues } from "./utils/queue";
+
+// Import workers to start them
+import "./utils/queue/workers/booking-events.worker";
+import "./utils/queue/workers/email.worker";
+import "./utils/queue/workers/notification.worker";
+import "./utils/queue/workers/payment-events.worker";
+import "./utils/queue/workers/user-events.worker";
 
 const port = config.port || 5000;
 
@@ -16,13 +22,17 @@ async function main() {
     // Initialize database and seed admin
     await PrismaConnection();
 
-    // Initialize event listeners
-    initializeEventListeners();
-    logger.info("📡 Event system initialized");
+    // BullMQ workers are automatically initialized by imports
+    logger.info("📡 BullMQ workers initialized");
+    logger.info("   ✅ Email worker");
+    logger.info("   ✅ Notification worker");
+    logger.info("   ✅ User events worker");
+    logger.info("   ✅ Booking events worker");
+    logger.info("   ✅ Payment events worker");
 
     // Initialize cron jobs
     if (config.NODE_ENV === "production" || config.NODE_ENV === "development") {
-      initializeCronJobs();
+      // initializeCronJobs();
       logger.info("⏰ Cron jobs initialized");
     }
 
@@ -50,6 +60,10 @@ const gracefulShutdown = async (signal: string) => {
       logger.info("✅ HTTP server closed");
 
       try {
+        // Close all BullMQ queues
+        await closeQueues();
+        logger.info("✅ All queues closed");
+
         // Disconnect Prisma
         await disconnectPrisma();
 

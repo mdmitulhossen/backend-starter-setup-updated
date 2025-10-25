@@ -24,6 +24,15 @@ export const reportQueue = new Queue("report", { connection });
 // Background Jobs Queue
 export const backgroundJobsQueue = new Queue("background-jobs", { connection });
 
+// User Events Queue - NEW!
+export const userEventsQueue = new Queue("user-events", { connection });
+
+// Booking Events Queue - NEW!
+export const bookingEventsQueue = new Queue("booking-events", { connection });
+
+// Payment Events Queue - NEW!
+export const paymentEventsQueue = new Queue("payment-events", { connection });
+
 // Queue Events for monitoring
 const emailQueueEvents = new QueueEvents("email", { connection });
 const notificationQueueEvents = new QueueEvents("notification", { connection });
@@ -236,6 +245,113 @@ export const addBackgroundJob = async (
     }
 };
 
+/**
+ * Add user event to queue
+ */
+export const addUserEventJob = async (
+    eventType: "created" | "updated" | "deleted",
+    eventData: {
+        userId: string;
+        email: string;
+        name?: string | null;
+        role?: string;
+        changes?: Record<string, any>;
+    }
+) => {
+    try {
+        const job = await userEventsQueue.add(
+            `user.${eventType}`,
+            eventData,
+            {
+                attempts: 3,
+                backoff: {
+                    type: "exponential",
+                    delay: 1000,
+                },
+                removeOnComplete: 200,
+                removeOnFail: 100,
+            }
+        );
+        logger.info(`User event job added: user.${eventType} - ${job.id}`);
+        return job;
+    } catch (error) {
+        logger.error(`Failed to add user event job:`, error);
+        throw error;
+    }
+};
+
+/**
+ * Add booking event to queue
+ */
+export const addBookingEventJob = async (
+    eventType: "created" | "updated" | "cancelled",
+    eventData: {
+        bookingId: string;
+        userId: string;
+        serviceId?: string;
+        status?: string;
+        reason?: string;
+        date?: Date;
+    }
+) => {
+    try {
+        const job = await bookingEventsQueue.add(
+            `booking.${eventType}`,
+            eventData,
+            {
+                attempts: 3,
+                backoff: {
+                    type: "exponential",
+                    delay: 1000,
+                },
+                removeOnComplete: 200,
+                removeOnFail: 100,
+            }
+        );
+        logger.info(`Booking event job added: booking.${eventType} - ${job.id}`);
+        return job;
+    } catch (error) {
+        logger.error(`Failed to add booking event job:`, error);
+        throw error;
+    }
+};
+
+/**
+ * Add payment event to queue
+ */
+export const addPaymentEventJob = async (
+    eventType: "completed" | "failed",
+    eventData: {
+        paymentId?: string;
+        userId: string;
+        amount: number;
+        bookingId?: string;
+        reason?: string;
+    }
+) => {
+    try {
+        const job = await paymentEventsQueue.add(
+            `payment.${eventType}`,
+            eventData,
+            {
+                attempts: 3,
+                backoff: {
+                    type: "exponential",
+                    delay: 1000,
+                },
+                priority: eventType === "failed" ? 2 : 1, // Higher priority for failures
+                removeOnComplete: 200,
+                removeOnFail: 100,
+            }
+        );
+        logger.info(`Payment event job added: payment.${eventType} - ${job.id}`);
+        return job;
+    } catch (error) {
+        logger.error(`Failed to add payment event job:`, error);
+        throw error;
+    }
+};
+
 // Export queues for external access
 export const queues = {
     email: emailQueue,
@@ -243,6 +359,9 @@ export const queues = {
     imageProcessing: imageProcessingQueue,
     report: reportQueue,
     backgroundJobs: backgroundJobsQueue,
+    userEvents: userEventsQueue,
+    bookingEvents: bookingEventsQueue,
+    paymentEvents: paymentEventsQueue,
 };
 
 // Graceful shutdown
@@ -253,6 +372,9 @@ export const closeQueues = async () => {
         imageProcessingQueue.close(),
         reportQueue.close(),
         backgroundJobsQueue.close(),
+        userEventsQueue.close(),
+        bookingEventsQueue.close(),
+        paymentEventsQueue.close(),
         emailQueueEvents.close(),
         notificationQueueEvents.close(),
     ]);
